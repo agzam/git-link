@@ -422,8 +422,9 @@ return (FILENAME . REVISION) otherwise nil."
   ;; prevent URL escapes from being interpreted as format strings
   (message (replace-regexp-in-string "%" "%%" link t t))
   (setq deactivate-mark t)
-  (when git-link-open-in-browser
-    (browse-url link)))
+  (if git-link-open-in-browser
+      (browse-url link)
+    link))
 
 (defun git-link-gitlab (hostname dirname filename branch commit start end)
   (format "https://%s/%s/blob/%s/%s"
@@ -614,16 +615,16 @@ is non-nil also call `browse-url'."
 (defun git-link-blame ()
   "Similar to `git-link`, with the difference of creating a git-blame link url"
   (interactive)
-  (cl-flet ((git-link--new*
-             (git-link-url)
-             (let ((match (git-link--handler git-link-blame-matchers git-link-url)))
-               (cond ((functionp match) (funcall match git-link-url))
-                     ((car match) (replace-regexp-in-string (car match) (cadr match) git-link-url))
-                     (t (message (format "No match exists in `git-link-blame-matchers` var for %s" git-link-url)))))))
-    (advice-add 'git-link--new :override #'git-link--new*) ; local override
-    (let ((link (call-interactively 'git-link)))
-      (advice-remove 'git-link--new #'git-link--new*)
-      (git-link--new link))))
+  (let* ((git-link-open-in-browser? git-link-open-in-browser) ; store previous value of git-link-open-in-browser
+         (git-link-open-in-browser nil) ; override value, so git-link fn wouldn't open browser too soon
+         (git-link-url (call-interactively 'git-link))
+         (match (git-link--handler git-link-blame-matchers git-link-url))
+         (blame-url (cond ((functionp match) (funcall match git-link-url))
+                          ((car match) (replace-regexp-in-string (car match) (cadr match) git-link-url))
+                          (t (message (format "No match exists in `git-link-blame-matchers` var for %s" git-link-url))))))
+    (if git-link-open-in-browser?
+     (browse-url blame-url)
+     blame-url)))
 
 (provide 'git-link)
 ;;; git-link.el ends here
